@@ -178,7 +178,7 @@
     <!-- 提出状況 -->
     <div class="card tab hidden" id="tabSubmit">
       <h2>評価の提出状況（評価者別）</h2>
-      <p class="small-note">登録済みの学生ごとに，何件評価を提出したかを表示します（出席確認の参考に）。</p>
+      <p class="small-note">登録済みの学生ごとに，何件評価を提出したかを表示します（出席確認の参考に）。学籍番号や氏名を間違えて登録した学生は「修正」で直せます。それまでに送った評価の評価者情報も一緒に直ります。</p>
       <div class="table-wrap"><table id="submitTable"></table></div>
     </div>
 
@@ -670,9 +670,43 @@ function submitRows() {
 function renderSubmit() {
   const rows = submitRows();
   const done = Object.values(presenters).filter(p => p.status === "open" || p.status === "closed").length;
-  $("submitTable").innerHTML = `<tr><th>学籍番号</th><th>氏名</th><th>担任</th><th>発表者名簿</th><th>提出件数（実施済み発表 ${done}件）</th></tr>` +
-    rows.map(r => `<tr><td>${esc(r.studentId)}</td><td class="left">${esc(r.name)}</td><td>${esc(r.tutor)}</td><td>${r.isPresenter ? "○" : "—"}</td><td>${r.count}</td></tr>`).join("") +
-    (rows.length ? "" : `<tr><td colspan="5">まだ登録者はいません</td></tr>`);
+  $("submitTable").innerHTML = `<tr><th>学籍番号</th><th>氏名</th><th>メール</th><th>担任</th><th>発表者名簿</th><th>提出件数（実施済み発表 ${done}件）</th><th>登録の修正</th></tr>` +
+    rows.map(r => `<tr><td>${esc(r.studentId)}</td><td class="left">${esc(r.name)}</td><td class="left small-note">${esc(r.email)}</td><td>${esc(r.tutor)}</td><td>${r.isPresenter ? "○" : "—"}</td><td>${r.count}</td>
+      <td><button class="small secondary" onclick="editUser('${r.uid}')">修正</button><button class="danger" onclick="deleteUser('${r.uid}')">削除</button></td></tr>`).join("") +
+    (rows.length ? "" : `<tr><td colspan="7">まだ登録者はいません</td></tr>`);
+}
+
+/* ----- 学生の登録情報の修正 ----- */
+async function editUser(uid) {
+  const u = allUsers[uid]; if (!u) return;
+  const sidIn = prompt(`学籍番号を修正します（${u.email || ""}）`, u.studentId); if (sidIn === null) return;
+  const sid = normSid(sidIn);
+  if (!/^\d{6,12}$/.test(sid)) { alert("学籍番号は数字で入力してください"); return; }
+  const nameIn = prompt("氏名", u.name || ""); if (nameIn === null) return;
+  const name = nameIn.trim() || u.name;
+  const dup = Object.entries(allUsers).find(([id, x]) => id !== uid && normSid(x.studentId) === sid);
+  if (dup && !confirm(`この学籍番号は ${dup[1].name}（${dup[1].email || ""}）も登録しています。続けますか？`)) return;
+  const up = { [`users/${uid}/studentId`]: sid, [`users/${uid}/name`]: name };
+  // これまでの評価の評価者情報も合わせて直す
+  Object.keys(allEvals).forEach(pid => {
+    if (allEvals[pid] && allEvals[pid][uid]) {
+      up[`evaluations/${pid}/${uid}/evaluatorId`] = sid;
+      up[`evaluations/${pid}/${uid}/evaluatorName`] = name;
+    }
+  });
+  // 正しい学籍番号で見て「自分の発表への評価」になっているものがあれば削除を提案
+  const own = Object.entries(presenters).find(([pid, p]) => normSid(p.studentId) === sid && allEvals[pid] && allEvals[pid][uid]);
+  if (own && confirm(`この学生は自分の発表（${own[1].name}）を評価しています。その評価を削除しますか？`)) {
+    Object.keys(up).filter(k => k.startsWith(`evaluations/${own[0]}/${uid}/`)).forEach(k => delete up[k]);
+    up[`evaluations/${own[0]}/${uid}`] = null;
+  }
+  try { await db.ref().update(up); alert("修正しました。学生には画面を再読み込みしてもらってください。"); }
+  catch (e) { alert("修正できませんでした：" + e.message); }
+}
+function deleteUser(uid) {
+  const u = allUsers[uid]; if (!u) return;
+  if (!confirm(`${u.name}（${u.studentId}）の登録を削除しますか？\n学生は次にサインインしたとき，学籍番号と氏名を登録し直します。これまでの評価は残ります。\n（番号の間違いを直すだけなら「修正」を使ってください）`)) return;
+  db.ref("users/" + uid).remove().catch(e => alert(e.message));
 }
 
 /* ----- 出力 ----- */
