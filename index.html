@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>卒論発表会 相互評価</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --main: #1f4e79;
+    --main-light: #e8f0f8;
+    --accent: #d68c45;
+    --ok: #2c6e49;
+    --danger: #c0392b;
+    --border: #d9d9d9;
+    --text: #222;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; background: #f5f6f8; margin: 0; color: var(--text); }
+  header { background: var(--main); color: #fff; padding: 14px 20px; font-size: 1.15em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  header button { background: #fff; color: var(--main); border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+  .container { max-width: 1000px; margin: 20px auto; padding: 0 14px; }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+  h2 { margin-top: 0; color: var(--main); font-size: 1.1em; }
+  h3 { color: var(--main); font-size: 1em; margin: 14px 0 6px; }
+  label { display: block; margin: 10px 0 4px; font-weight: bold; font-size: 0.9em; }
+  input, select, textarea { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 1em; font-family: inherit; }
+  textarea { min-height: 80px; }
+  button { font-family: inherit; }
+  button.primary { background: var(--main); color: #fff; border: none; padding: 10px 18px; border-radius: 4px; cursor: pointer; font-size: 1em; margin-top: 12px; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.secondary { background: #fff; color: var(--main); border: 1px solid var(--main); padding: 7px 12px; border-radius: 4px; cursor: pointer; margin: 4px 6px 4px 0; }
+  button.danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+  button.small { padding: 4px 10px; font-size: 0.85em; margin: 2px; }
+  button.go { background: var(--ok); color: #fff; border: 1px solid var(--ok); }
+  button.stop { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.88em; }
+  th, td { border: 1px solid var(--border); padding: 6px 7px; text-align: center; }
+  th { background: var(--main-light); position: sticky; top: 0; }
+  td.left { text-align: left; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover { background: #fafcff; }
+  .table-wrap { overflow-x: auto; max-height: 70vh; }
+  .hidden { display: none !important; }
+  .msg { padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 0.9em; }
+  .msg.error { background: #fdecea; color: var(--danger); }
+  .msg.success { background: #e8f5e9; color: var(--ok); }
+  .msg.info { background: var(--main-light); color: var(--main); }
+  .small-note { font-size: 0.8em; color: #777; margin-top: 4px; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabs button { flex: 1; min-width: 110px; padding: 10px; border: 1px solid var(--main); background: #fff; color: var(--main); border-radius: 6px; cursor: pointer; font-size: .95em; }
+  .tabs button.active { background: var(--main); color: #fff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; }
+  .badge.waiting { background: #eee; color: #666; }
+  .badge.open { background: #e8f5e9; color: var(--ok); font-weight: bold; }
+  .badge.closed { background: #fff4e0; color: var(--accent); }
+  .badge.done { background: #e6f0ff; color: #2255aa; }
+  .presenter-card { border: 2px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; background: #fff; }
+  .presenter-card.open { border-color: var(--ok); }
+  .presenter-card.mine { cursor: default; opacity: .6; }
+  .presenter-card .pname { font-size: 1.15em; font-weight: bold; }
+  .rating-item { border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .criteria-label { font-weight: bold; }
+  .criteria-desc { font-size: 0.85em; color: #555; margin: 4px 0 8px; white-space: pre-wrap; }
+  .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .scale button { padding: 10px 2px; border: 1px solid var(--main); border-radius: 6px; background: #fff; color: var(--main); cursor: pointer; font-size: 0.78em; line-height: 1.3; min-height: 48px; }
+  .scale button.sel { background: var(--main); color: #fff; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 1; min-width: 120px; }
+  .room-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  .room-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .now { background: #f2fbf4; }
+  .item-edit { border: 1px dashed var(--border); padding: 10px; border-radius: 6px; margin-bottom: 8px; }
+  .comment-list div { border-bottom: 1px solid #eee; padding: 6px 0; font-size: .9em; text-align: left; }
+</style>
+</head>
+<body>
+
+<header>
+  <span id="headerTitle">卒論発表会 相互評価</span>
+  <span>
+    <button id="switchRoleBtn" class="hidden" onclick="switchRole()">教員画面</button>
+    <button id="logoutBtn" class="hidden" onclick="logout()">ログアウト</button>
+  </span>
+</header>
+
+<div class="container">
+
+  <!-- ===== サインイン ===== -->
+  <div class="card" id="topScreen">
+    <h2 id="topTitle">卒論発表会 相互評価</h2>
+    <p>大学のGoogleアカウント（@nbu.ac.jp）でサインインしてください。</p>
+    <button class="primary" onclick="googleSignIn()">Googleでサインイン</button>
+    <div id="topMsg"></div>
+  </div>
+
+  <!-- ===== 学生：初回登録 ===== -->
+  <div class="card hidden" id="registerScreen">
+    <h2>はじめに：あなたの情報を登録してください</h2>
+    <p class="small-note">評価者の確認と，自分自身の発表を評価しないようにするために使います。登録は初回のみです。</p>
+    <label>学籍番号</label>
+    <input type="text" id="regStudentId" inputmode="numeric" placeholder="例：202333001">
+    <label>氏名</label>
+    <input type="text" id="regName" placeholder="例：文理 太郎">
+    <button class="primary" onclick="registerProfile()">登録する</button>
+    <div id="registerMsg"></div>
+  </div>
+
+  <!-- ===== 学生：発表一覧 ===== -->
+  <div class="card hidden" id="studentListScreen">
+    <h2 id="studentListTitle">評価する発表を選んでください</h2>
+    <div class="small-note" id="studentWho"></div>
+    <div class="row" style="margin:8px 0;">
+      <div>
+        <label style="margin-top:0;">発表日</label>
+        <select id="roomFilter" onchange="renderStudentList()"></select>
+      </div>
+    </div>
+    <div class="msg info" id="studentProgress"></div>
+    <h3>受付中の発表</h3>
+    <div id="openList"></div>
+    <h3>評価済み</h3>
+    <div id="doneList"></div>
+  </div>
+
+  <!-- ===== 学生：評価入力 ===== -->
+  <div class="card hidden" id="evalScreen">
+    <h2 id="evalTitle"></h2>
+    <div id="evalSub" class="small-note"></div>
+    <div id="evalItems"></div>
+    <label id="commentLabel">コメント</label>
+    <textarea id="evalComment" placeholder="良かった点・質問・アドバイスなど"></textarea>
+    <div class="row">
+      <button class="secondary" onclick="backToList()">一覧に戻る</button>
+      <button class="primary" id="submitEvalBtn" onclick="submitEvaluation()">送信する</button>
+    </div>
+    <div id="evalMsg"></div>
+  </div>
+
+  <!-- ===== 教員 ===== -->
+  <div id="teacherScreen" class="hidden">
+    <div class="tabs">
+      <button data-tab="tabRun" onclick="showTab('tabRun')">進行</button>
+      <button data-tab="tabResult" onclick="showTab('tabResult')">集計・出力</button>
+      <button data-tab="tabSubmit" onclick="showTab('tabSubmit')">提出状況</button>
+      <button data-tab="tabPresenters" onclick="showTab('tabPresenters')">発表者登録</button>
+      <button data-tab="tabSettings" onclick="showTab('tabSettings')">設定</button>
+    </div>
+
+    <!-- 進行 -->
+    <div class="card tab" id="tabRun">
+      <h2>進行（評価受付の開始・締切）</h2>
+      <p class="small-note">発表が始まったら「受付開始」，終わったら「締切」。「次の発表へ」で，その発表日の受付中を締め切り，No.順で次の未実施の発表者を受付開始にします（「欠席」にした人は飛ばします）。順番を入れ替えたいときは「発表者登録」タブの「編集」でNo.を変更してください。学生の画面は自動で更新されます。</p>
+      <div id="runArea"></div>
+    </div>
+
+    <!-- 集計 -->
+    <div class="card tab hidden" id="tabResult">
+      <h2>集計結果</h2>
+      <div class="row">
+        <div><label style="margin-top:0;">並び順</label>
+          <select id="sortSel" onchange="renderResults()"><option value="no">No.順</option><option value="rank">順位順</option></select></div>
+        <div><label style="margin-top:0;">担任</label><select id="tutorSel" onchange="renderResults()"></select></div>
+        <div><label style="margin-top:0;">発表日</label><select id="resRoomSel" onchange="renderResults()"></select></div>
+      </div>
+      <div class="row" style="margin-top:6px;">
+        <button class="primary" onclick="downloadExcel()">Excelダウンロード（集計・全データ・コメント・提出状況）</button>
+        <button class="secondary" onclick="downloadSummaryCsv()">集計のみCSV</button>
+      </div>
+      <p class="small-note">各観点＝評価者ごとの観点平均（4問の平均）をさらに評価者全員で平均，総合Avr＝観点平均の平均，合計＝観点平均の合計（15点満点），RANK＝合計の降順（同点は同順位）。行をクリックするとコメントを表示します。</p>
+      <div class="table-wrap"><table id="resultTable"></table></div>
+      <div id="detailArea"></div>
+    </div>
+
+    <!-- 提出状況 -->
+    <div class="card tab hidden" id="tabSubmit">
+      <h2>評価の提出状況（評価者別）</h2>
+      <p class="small-note">登録済みの学生ごとに，何件評価を提出したかを表示します（出席確認の参考に）。</p>
+      <div class="table-wrap"><table id="submitTable"></table></div>
+    </div>
+
+    <!-- 発表者登録 -->
+    <div class="card tab hidden" id="tabPresenters">
+      <h2>発表者登録</h2>
+      <h3>Excel／CSVから一括登録</h3>
+      <p class="small-note">1行目を見出し行とし，「No」「学籍番号」「氏名」「担任」「発表日」の列を読み取ります（「担任」「発表日」は空欄可。「発表日」は 11/25 のような文字でOK，列名は「教室」「日程」でも可）。昨年度の集計Excelの形式でも読み込めます。同じ学籍番号は上書きされます。</p>
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
+      <button class="secondary" onclick="importPresenters()">読み込んで登録</button>
+      <h3>1名ずつ追加</h3>
+      <div class="row">
+        <input type="number" id="addNo" placeholder="No.">
+        <input type="text" id="addSid" placeholder="学籍番号">
+        <input type="text" id="addName" placeholder="氏名">
+        <input type="text" id="addTutor" placeholder="担任">
+        <input type="text" id="addRoom" placeholder="発表日（例：11/25）">
+      </div>
+      <button class="secondary" onclick="addPresenter()">追加</button>
+      <div id="presMsg"></div>
+      <h3>登録済み（<span id="presCount">0</span>名）</h3>
+      <div class="table-wrap"><table id="presTable"></table></div>
+      <button class="danger" style="margin-top:12px;" onclick="deleteAllPresenters()">発表者をすべて削除</button>
+    </div>
+
+    <!-- 設定 -->
+    <div class="card tab hidden" id="tabSettings">
+      <h2>設定</h2>
+      <label>発表会名（学生画面に表示）</label>
+      <input type="text" id="setTitle">
+      <h3>評価観点と設問（各設問5段階：よくできている5〜できていない1）</h3>
+      <div id="itemsEdit"></div>
+      <button class="secondary" onclick="addItemEdit()">観点を追加</button>
+      <label><input type="checkbox" id="setCommentReq" style="width:auto;"> コメントを必須にする</label>
+      <button class="primary" onclick="saveSettings()">設定を保存</button>
+      <div id="setMsg"></div>
+      <p class="small-note">※評価受付開始後に設問の数や順番を変えると集計がずれます。発表会の初回前に確定してください。</p>
+      <h3 style="color:var(--danger);">リセット</h3>
+      <p class="small-note">次年度に使う前に，評価データを全削除します（Excelで保存してから実行してください）。</p>
+      <button class="danger" onclick="resetEvaluations()">評価データをすべて削除</button>
+      <button class="danger" onclick="resetUsers()">学生の登録情報をすべて削除</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ==========================================================
+   Firebase設定（Firebaseコンソールの値に置き換えてください）
+========================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyA1Ij9AKsGvlQGepwKV002YMcLMD13hN6Y",
+  authDomain: "thesis-eval-app.firebaseapp.com",
+  databaseURL: "https://thesis-eval-app-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "thesis-eval-app",
+  storageBucket: "thesis-eval-app.firebasestorage.app",
+  messagingSenderId: "121585161520",
+  appId: "1:121585161520:web:fa655188667d3e488ca4f5"
+};
+
+/* ==========================================================
+   教員のメールアドレス（ルールファイルにも同じものを記載）
+========================================================== */
+const TEACHER_EMAILS = [
+  "kawamurayj@nbu.ac.jp",   // 河村
+  "nabeta@nbu.ac.jp",       // 鍋田
+  "hashimototk@nbu.ac.jp",  // 橋本
+  "ootaniah@nbu.ac.jp"      // 大谷
+];
+
+const ALLOWED_DOMAIN = "nbu.ac.jp";
+
+/* 初期値（設定画面で変更可） */
+const DEFAULT_SETTINGS = {
+  title: "卒論発表会 相互評価",
+  commentRequired: false,
+  categories: [
+    { label: "①研究活動", questions: [
+      "研究活動の内容が具体的に説明できている",
+      "研究活動の目的や達成目標・意義等が説明できている",
+      "研究活動の内容が社会的または地域的な問題と明確に関連付けられている",
+      "修得した専門知識を含めて，研究活動全体が自分の言葉で簡潔明瞭に説明できている" ] },
+    { label: "②対課題基礎力", questions: [
+      "既存の学術的知見を踏まえて，現実的かつ明確な課題設定や目標設定ができている",
+      "目標を達成するための計画立案が明確になっている",
+      "収集した情報に対して，自分が学んでいる専門分野を含めた多角的な視点から理解・分析ができている",
+      "立案した計画に対して，必要に応じて計画を柔軟に変更しつつも，当初の目標を達成できている" ] },
+    { label: "③表現力", questions: [
+      "制限時間を有効に使ってプレゼンを行うことができた",
+      "話し方は画面などが工夫されて分かりやすい",
+      "熱意を込めて話ができている",
+      "自分たちの経験や気づきが自分なりの言葉で述べられている" ] }
+  ]
+};
+/* 回答の選択肢と点数（従来フォームの文言） */
+const SCALE = [
+  { v: 5, t: "よくできている" }, { v: 4, t: "できている" }, { v: 3, t: "どちらともいえない" }, { v: 2, t: "あまりできていない" }, { v: 1, t: "できていない" }
+];
+/* 全設問を通し番号で並べる */
+function flatQ() {
+  const out = [];
+  settings.categories.forEach((c, ci) => c.questions.forEach(q => out.push({ ci, text: q, idx: out.length })));
+  return out;
+}
+/* 1件の評価（scores配列）からカテゴリごとの平均を出す */
+function catAvgsOf(scores) {
+  const qs = flatQ();
+  return settings.categories.map((_, ci) => {
+    const v = qs.filter(q => q.ci === ci).map(q => Number((scores || [])[q.idx])).filter(x => x > 0);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  });
+}
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+/* ========== 状態 ========== */
+let me = null;            // firebase user
+let profile = null;       // { studentId, name }
+let isTeacher = false;
+let mode = null;          // 'student' | 'teacher'
+let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+let presenters = {};      // pid -> {...}
+let myEvals = {};         // pid -> evaluation（学生）
+let allEvals = {};        // pid -> uid -> evaluation（教員）
+let allUsers = {};        // uid -> profile（教員）
+let currentPid = null;
+let currentScores = [];
+let listeners = [];
+
+/* ========== 共通 ========== */
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function msg(id, text, type) { $(id).innerHTML = text ? `<div class="msg ${type || "info"}">${esc(text)}</div>` : ""; }
+function show(id) {
+  ["topScreen", "registerScreen", "studentListScreen", "evalScreen", "teacherScreen"].forEach(x => $(x).classList.add("hidden"));
+  $(id).classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+function on(ref, ev, fn) { ref.on(ev, fn, err => console.error(err)); listeners.push(() => ref.off(ev, fn)); }
+function offAll() { listeners.forEach(f => f()); listeners = []; }
+function sortedPresenters() {
+  return Object.entries(presenters).map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => (Number(a.no) || 9999) - (Number(b.no) || 9999) || String(a.studentId).localeCompare(String(b.studentId)));
+}
+function rooms() {
+  const s = new Set(Object.values(presenters).map(p => p.room || ""));
+  return [...s].sort();
+}
+function roomLabel(r) { return r ? r : "（発表日未設定）"; }
+function normSid(s) { return String(s == null ? "" : s).replace(/[^0-9A-Za-z]/g, "").toUpperCase(); }
+function fmt(n) { return (n == null || isNaN(n)) ? "" : n.toFixed(2); }
+
+/* ========== 認証 ========== */
+function googleSignIn() {
+  msg("topMsg", "");
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ hd: ALLOWED_DOMAIN, prompt: "select_account" });
+  auth.signInWithPopup(provider).catch(err => msg("topMsg", "サインインに失敗しました：" + err.message, "error"));
+}
+
+auth.onAuthStateChanged(async user => {
+  offAll();
+  if (!user) { me = null; mode = null; $("logoutBtn").classList.add("hidden"); $("switchRoleBtn").classList.add("hidden"); show("topScreen"); return; }
+  const email = (user.email || "").toLowerCase();
+  if (!email.endsWith("@" + ALLOWED_DOMAIN)) {
+    msg("topMsg", "@" + ALLOWED_DOMAIN + " のアカウントでサインインしてください", "error");
+    auth.signOut(); return;
+  }
+  me = user;
+  isTeacher = TEACHER_EMAILS.map(e => e.toLowerCase()).includes(email);
+  $("logoutBtn").classList.remove("hidden");
+  await loadSettingsOnce();
+  if (isTeacher) { startTeacher(); } else { startStudentFlow(); }
+});
+
+function logout() { offAll(); auth.signOut(); }
+
+function switchRole() {
+  offAll();
+  if (mode === "teacher") { startStudentFlow(); } else { startTeacher(); }
+}
+
+async function loadSettingsOnce() {
+  try {
+    const snap = await db.ref("settings").once("value");
+    applySettings(snap.val());
+  } catch (e) { console.error(e); }
+}
+function applySettings(v) {
+  settings = Object.assign(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), v || {});
+  if (!Array.isArray(settings.categories) || !settings.categories.length) settings.categories = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.categories));
+  settings.categories.forEach(c => { if (!Array.isArray(c.questions)) c.questions = []; });
+  $("headerTitle").textContent = settings.title;
+  $("topTitle").textContent = settings.title;
+}
+
+/* ==========================================================
+   学生
+========================================================== */
+async function startStudentFlow() {
+  mode = "student";
+  if (isTeacher) { $("switchRoleBtn").classList.remove("hidden"); $("switchRoleBtn").textContent = "教員画面"; }
+  const snap = await db.ref("users/" + me.uid).once("value");
+  profile = snap.val();
+  if (!profile || !profile.studentId) {
+    const local = (me.email || "").split("@")[0];
+    // 学生メール s2233088@nbu.ac.jp → 学籍番号 202233088
+    const m7 = local.match(/^s(\d{7})$/i), m9 = local.match(/\d{9}/);
+    $("regStudentId").value = m7 ? "20" + m7[1] : (m9 ? m9[0] : "");
+    $("regName").value = me.displayName || "";
+    show("registerScreen");
+    return;
+  }
+  startStudentList();
+}
+
+async function registerProfile() {
+  const sid = normSid($("regStudentId").value);
+  const name = $("regName").value.trim();
+  if (!sid || !name) { msg("registerMsg", "学籍番号と氏名を入力してください", "error"); return; }
+  if (!/^\d{6,12}$/.test(sid)) { msg("registerMsg", "学籍番号は数字で入力してください", "error"); return; }
+  try {
+    await db.ref("users/" + me.uid).set({ studentId: sid, name, email: me.email, registeredAt: firebase.database.ServerValue.TIMESTAMP });
+    profile = { studentId: sid, name };
+    startStudentList();
+  } catch (e) { msg("registerMsg", "登録に失敗しました：" + e.message, "error"); }
+}
+
+function startStudentList() {
+  show("studentListScreen");
+  $("studentWho").textContent = `${profile.name}（${profile.studentId}）としてサインイン中`;
+  on(db.ref("settings"), "value", s => { applySettings(s.val()); });
+  on(db.ref("presenters"), "value", async s => {
+    presenters = s.val() || {};
+    buildRoomFilter();
+    await loadMyEvals();
+    renderStudentList();
+    // 評価入力中に締切られた場合
+    if (currentPid && !$("evalScreen").classList.contains("hidden")) {
+      const p = presenters[currentPid];
+      if (!p || p.status !== "open") { $("submitEvalBtn").disabled = true; msg("evalMsg", "この発表の評価受付は締め切られました。", "error"); }
+      else { $("submitEvalBtn").disabled = false; }
+    }
+  });
+}
+
+function buildRoomFilter() {
+  const sel = $("roomFilter");
+  const prev = sel.value || "__all";   // 前回の選択は持ち越さない（日をまたいで表示が空になるのを防ぐ）
+  const rs = rooms();
+  sel.innerHTML = `<option value="__all">すべて</option>` + rs.map(r => `<option value="${esc(r)}">${esc(roomLabel(r))}</option>`).join("");
+  sel.value = [...sel.options].some(o => o.value === prev) ? prev : "__all";
+  sel.parentElement.parentElement.classList.toggle("hidden", rs.length <= 1);
+}
+function localStorageGet(k) { try { return localStorage.getItem("thesisEval_" + k); } catch (e) { return null; } }
+function localStorageSet(k, v) { try { localStorage.setItem("thesisEval_" + k, v); } catch (e) { } }
+
+async function loadMyEvals() {
+  const ids = Object.keys(presenters);
+  const res = await Promise.all(ids.map(pid => db.ref(`evaluations/${pid}/${me.uid}`).once("value").then(s => [pid, s.val()]).catch(() => [pid, null])));
+  myEvals = {};
+  res.forEach(([pid, v]) => { if (v) myEvals[pid] = v; });
+}
+
+function renderStudentList() {
+  const room = $("roomFilter").value;
+  const list = sortedPresenters().filter(p => room === "__all" || (p.room || "") === room);
+  const mySid = normSid(profile.studentId);
+  const open = list.filter(p => p.status === "open");
+  const done = list.filter(p => myEvals[p.id]);
+  const evaluable = list.filter(p => normSid(p.studentId) !== mySid && (p.status === "open" || p.status === "closed"));
+  $("studentProgress").textContent = `評価提出：${Object.keys(myEvals).length}件（これまでに実施された発表：${evaluable.length}件）`;
+
+  $("openList").innerHTML = open.length ? open.map(p => {
+    const mine = normSid(p.studentId) === mySid;
+    const isDone = !!myEvals[p.id];
+    return `<div class="presenter-card open ${mine ? "mine" : ""}" ${mine ? "" : `onclick="openEval('${p.id}')"`}>
+      <div><div class="pname">${esc(p.name)}</div>
+      <div class="small-note">No.${esc(p.no)}　${esc(roomLabel(p.room))}</div></div>
+      <div>${mine ? '<span class="badge waiting">あなたの発表</span>' : isDone ? '<span class="badge done">評価済（修正可）</span>' : '<span class="badge open">評価する ›</span>'}</div>
+    </div>`;
+  }).join("") : `<p class="small-note">現在，評価を受け付けている発表はありません。発表が始まると自動で表示されます。</p>`;
+
+  $("doneList").innerHTML = done.length ? `<table><tr><th>No.</th><th>発表者</th>${settings.categories.map(c => `<th>${esc(c.label)}</th>`).join("")}</tr>` +
+    done.map(p => `<tr><td>${esc(p.no)}</td><td class="left">${esc(p.name)}</td>${catAvgsOf(myEvals[p.id].scores).map(v => `<td>${fmt(v)}</td>`).join("")}</tr>`).join("") + `</table>`
+    : `<p class="small-note">まだありません。</p>`;
+}
+
+function openEval(pid) {
+  const p = presenters[pid];
+  if (!p || p.status !== "open") return;
+  currentPid = pid;
+  const prev = myEvals[pid];
+  const qs = flatQ();
+  currentScores = qs.map(q => prev && prev.scores ? (Number(prev.scores[q.idx]) || 0) : 0);
+  $("evalTitle").textContent = `${p.name} さんの発表`;
+  $("evalSub").textContent = `No.${p.no}　${roomLabel(p.room)}　／　全${qs.length}問，それぞれ5段階で評価してください`;
+  $("evalItems").innerHTML = settings.categories.map((c, ci) => `<h3>${esc(c.label)}</h3>` +
+    qs.filter(q => q.ci === ci).map(q => `
+    <div class="rating-item">
+      <div class="criteria-label">${q.idx + 1}．${esc(q.text)}</div>
+      <div class="scale" id="scale_${q.idx}">
+        ${SCALE.map(sc => `<button type="button" data-v="${sc.v}" onclick="pickScore(${q.idx},${sc.v})">${esc(sc.t)}</button>`).join("")}
+      </div>
+    </div>`).join("")).join("");
+  qs.forEach(q => paintScale(q.idx));
+  $("evalComment").value = prev ? (prev.comment || "") : "";
+  $("commentLabel").textContent = settings.commentRequired ? "コメント（必須）" : "コメント（任意）";
+  $("submitEvalBtn").disabled = false;
+  msg("evalMsg", "");
+  show("evalScreen");
+}
+function pickScore(i, v) { currentScores[i] = v; paintScale(i); }
+function paintScale(i) {
+  document.querySelectorAll(`#scale_${i} button`).forEach(b => b.classList.toggle("sel", Number(b.dataset.v) === currentScores[i]));
+}
+function backToList() { currentPid = null; show("studentListScreen"); renderStudentList(); }
+
+async function submitEvaluation() {
+  const miss = currentScores.map((v, i) => v ? null : i + 1).filter(x => x);
+  if (miss.length) { msg("evalMsg", `未回答の設問があります：${miss.join("，")}`, "error"); return; }
+  const comment = $("evalComment").value.trim();
+  if (settings.commentRequired && !comment) { msg("evalMsg", "コメントを入力してください", "error"); return; }
+  $("submitEvalBtn").disabled = true;
+  const data = {
+    scores: currentScores.slice(),
+    comment: comment.slice(0, 1000),
+    evaluatorId: profile.studentId,
+    evaluatorName: profile.name,
+    at: firebase.database.ServerValue.TIMESTAMP
+  };
+  try {
+    await db.ref(`evaluations/${currentPid}/${me.uid}`).set(data);
+    myEvals[currentPid] = data;
+    currentPid = null;
+    show("studentListScreen");
+    renderStudentList();
+    msg("studentProgress", "送信しました。ありがとうございました。", "success");
+    setTimeout(renderStudentList, 2500);
+  } catch (e) {
+    $("submitEvalBtn").disabled = false;
+    msg("evalMsg", "送信できませんでした（受付が締め切られた可能性があります）：" + e.message, "error");
+  }
+}
+
+/* ==========================================================
+   教員
+========================================================== */
+function startTeacher() {
+  mode = "teacher";
+  $("switchRoleBtn").classList.remove("hidden");
+  $("switchRoleBtn").textContent = "学生画面を確認";
+  show("teacherScreen");
+  showTab(localStorageGet("tab") || "tabRun");
+  on(db.ref("settings"), "value", s => { applySettings(s.val()); renderSettingsForm(); renderAll(); });
+  on(db.ref("presenters"), "value", s => { presenters = s.val() || {}; renderAll(); });
+  on(db.ref("evaluations"), "value", s => { allEvals = s.val() || {}; renderAll(); });
+  on(db.ref("users"), "value", s => { allUsers = s.val() || {}; renderAll(); });
+}
+
+function showTab(id) {
+  document.querySelectorAll("#teacherScreen .tab").forEach(t => t.classList.add("hidden"));
+  $(id).classList.remove("hidden");
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  localStorageSet("tab", id);
+}
+
+function renderAll() {
+  if (mode !== "teacher") return;
+  renderRun(); renderResults(); renderSubmit(); renderPresenterTable();
+}
+
+/* ----- 進行 ----- */
+function evalCount(pid) { return Object.keys(allEvals[pid] || {}).length; }
+
+function renderRun() {
+  const list = sortedPresenters();
+  if (!list.length) { $("runArea").innerHTML = `<p>発表者が登録されていません。「発表者登録」タブから登録してください。</p>`; return; }
+  const registered = Object.keys(allUsers).length;
+  $("runArea").innerHTML = `<p class="small-note">登録済みの評価者：${registered}名</p>` + rooms().map(r => {
+    const rl = list.filter(p => (p.room || "") === r);
+    const rEsc = encodeURIComponent(r);
+    return `<div class="room-block">
+      <div class="room-head"><strong>${esc(roomLabel(r))}</strong>
+        <span><button class="small go" onclick="nextPresenter('${rEsc}')">次の発表へ ▶</button>
+        <button class="small stop" onclick="closeRoom('${rEsc}')">この日の受付をすべて締切</button></span></div>
+      <table><tr><th>No.</th><th>氏名</th><th>担任</th><th>状態</th><th>評価件数</th><th>操作</th></tr>
+      ${rl.map(p => `<tr class="${p.status === "open" ? "now" : ""}">
+        <td>${esc(p.no)}</td><td class="left">${esc(p.name)}</td><td>${esc(p.tutor)}</td>
+        <td>${statusBadge(p.status)}</td><td><strong>${evalCount(p.id)}</strong></td>
+        <td>${p.status === "open"
+          ? `<button class="small stop" onclick="setStatus('${p.id}','closed')">締切</button>`
+          : `<button class="small go" onclick="setStatus('${p.id}','open')">${p.status === "closed" ? "再開" : "受付開始"}</button>`}
+          ${(p.status || "waiting") === "waiting" ? `<button class="small secondary" onclick="setStatus('${p.id}','absent')">欠席</button>` : `<button class="small secondary" onclick="setStatus('${p.id}','waiting')">未実施に戻す</button>`}</td>
+      </tr>`).join("")}</table></div>`;
+  }).join("");
+}
+function statusBadge(s) {
+  return s === "open" ? '<span class="badge open">受付中</span>' : s === "closed" ? '<span class="badge closed">締切</span>' : s === "absent" ? '<span class="badge waiting">欠席</span>' : '<span class="badge waiting">未実施</span>';
+}
+function setStatus(pid, st) { db.ref(`presenters/${pid}/status`).set(st).catch(e => alert(e.message)); }
+function closeRoom(rEsc) {
+  const r = decodeURIComponent(rEsc);
+  const up = {};
+  sortedPresenters().filter(p => (p.room || "") === r && p.status === "open").forEach(p => up[`${p.id}/status`] = "closed");
+  if (Object.keys(up).length) db.ref("presenters").update(up);
+}
+function nextPresenter(rEsc) {
+  const r = decodeURIComponent(rEsc);
+  const rl = sortedPresenters().filter(p => (p.room || "") === r);
+  const up = {};
+  rl.filter(p => p.status === "open").forEach(p => up[`${p.id}/status`] = "closed");
+  const next = rl.find(p => (p.status || "waiting") === "waiting");
+  if (next) up[`${next.id}/status`] = "open";
+  if (!next && !Object.keys(up).length) { alert("この日の発表はすべて終了しています。"); return; }
+  db.ref("presenters").update(up);
+}
+
+/* ----- 集計 ----- */
+function computeResults() {
+  const n = settings.categories.length;
+  const rows = sortedPresenters().map(p => {
+    const evs = p.status === "absent" ? [] : Object.values(allEvals[p.id] || {});
+    const sums = new Array(n).fill(0), cnts = new Array(n).fill(0);
+    evs.forEach(e => catAvgsOf(e.scores).forEach((v, i) => { if (v != null) { sums[i] += v; cnts[i]++; } }));
+    const avgs = sums.map((s, i) => cnts[i] ? s / cnts[i] : null);
+    const valid = avgs.every(a => a != null);
+    const total = valid ? avgs.reduce((a, b) => a + b, 0) : null;
+    return { ...p, count: evs.length, avgs, total, overall: valid ? total / n : null };
+  });
+  // RANK（同点は同順位，Excel RANK.EQ と同じ）— 表示と同じ小数第2位で比較
+  const totals = rows.filter(r => r.total != null).map(r => Math.round(r.total * 100));
+  rows.forEach(r => { r.rank = r.total == null ? null : 1 + totals.filter(t => t > Math.round(r.total * 100)).length; });
+  return rows;
+}
+
+function fillSelect(id, values, allLabel) {
+  const sel = $(id), prev = sel.value;
+  sel.innerHTML = `<option value="__all">${allLabel}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v || "（空欄）")}</option>`).join("");
+  sel.value = [...sel.options].some(o => o.value === prev) ? prev : "__all";
+}
+
+function renderResults() {
+  if (mode !== "teacher") return;
+  fillSelect("tutorSel", [...new Set(Object.values(presenters).map(p => p.tutor || ""))].sort(), "すべて");
+  fillSelect("resRoomSel", rooms(), "すべて");
+  let rows = computeResults();
+  const t = $("tutorSel").value, r = $("resRoomSel").value;
+  if (t !== "__all") rows = rows.filter(x => (x.tutor || "") === t);
+  if (r !== "__all") rows = rows.filter(x => (x.room || "") === r);
+  if ($("sortSel").value === "rank") rows.sort((a, b) => (a.rank || 9999) - (b.rank || 9999));
+  $("resultTable").innerHTML = `<tr><th>No.</th><th>学籍番号</th><th>氏名</th><th>担任</th><th>発表日</th>${settings.categories.map(c => `<th>${esc(c.label)}</th>`).join("")}<th>総合Avr</th><th>合計</th><th>RANK</th><th>評価件数</th></tr>` +
+    rows.map(x => `<tr class="clickable" onclick="showDetail('${x.id}')"><td>${esc(x.no)}</td><td>${esc(x.studentId)}</td><td class="left">${esc(x.name)}</td><td>${esc(x.tutor)}</td><td>${esc(x.room)}</td>
+      ${x.avgs.map(a => `<td>${fmt(a)}</td>`).join("")}<td><strong>${fmt(x.overall)}</strong></td><td>${fmt(x.total)}</td><td>${x.rank || ""}</td><td>${x.count}</td></tr>`).join("");
+}
+
+function showDetail(pid) {
+  const p = presenters[pid];
+  const evs = Object.entries(allEvals[pid] || {}).map(([uid, e]) => ({ uid, ...e })).sort((a, b) => String(a.evaluatorId).localeCompare(String(b.evaluatorId)));
+  $("detailArea").innerHTML = `<h3>${esc(p.name)} さんへの評価（${evs.length}件）</h3>
+    <table><tr><th>評価者</th>${settings.categories.map(c => `<th>${esc(c.label)}</th>`).join("")}<th>コメント</th><th></th></tr>
+    ${evs.map(e => `<tr><td class="left">${esc(e.evaluatorName)}<br><span class="small-note">${esc(e.evaluatorId)}</span></td>${catAvgsOf(e.scores).map(v => `<td>${fmt(v)}</td>`).join("")}
+      <td class="left">${esc(e.comment)}</td><td><button class="danger" onclick="deleteEval('${pid}','${e.uid}')">削除</button></td></tr>`).join("")}</table>`;
+  $("detailArea").scrollIntoView({ behavior: "smooth" });
+}
+function deleteEval(pid, uid) {
+  if (!confirm("この評価を削除しますか？")) return;
+  db.ref(`evaluations/${pid}/${uid}`).remove().then(() => showDetail(pid));
+}
+
+/* ----- 提出状況 ----- */
+function submitRows() {
+  const counts = {};
+  Object.values(allEvals).forEach(m => Object.keys(m || {}).forEach(uid => counts[uid] = (counts[uid] || 0) + 1));
+  const sidToPres = {};
+  Object.values(presenters).forEach(p => sidToPres[normSid(p.studentId)] = p);
+  return Object.entries(allUsers).map(([uid, u]) => {
+    const p = sidToPres[normSid(u.studentId)];
+    return { uid, studentId: u.studentId, name: u.name, email: u.email, count: counts[uid] || 0, tutor: p ? p.tutor : "", isPresenter: !!p };
+  }).sort((a, b) => String(a.studentId).localeCompare(String(b.studentId)));
+}
+function renderSubmit() {
+  const rows = submitRows();
+  const done = Object.values(presenters).filter(p => p.status === "open" || p.status === "closed").length;
+  $("submitTable").innerHTML = `<tr><th>学籍番号</th><th>氏名</th><th>担任</th><th>発表者名簿</th><th>提出件数（実施済み発表 ${done}件）</th></tr>` +
+    rows.map(r => `<tr><td>${esc(r.studentId)}</td><td class="left">${esc(r.name)}</td><td>${esc(r.tutor)}</td><td>${r.isPresenter ? "○" : "—"}</td><td>${r.count}</td></tr>`).join("") +
+    (rows.length ? "" : `<tr><td colspan="5">まだ登録者はいません</td></tr>`);
+}
+
+/* ----- 出力 ----- */
+function summaryAoA() {
+  const rows = computeResults();
+  const head = ["No.", "学籍番号", "氏名", "担任", "発表日", ...settings.categories.map(c => c.label), "総合Avr", "合計", "RANK", "評価件数"];
+  const r2 = v => v == null ? "" : Math.round(v * 100) / 100;
+  return [head, ...rows.map(x => [x.no, x.studentId, x.name, x.tutor || "", x.room || "", ...x.avgs.map(r2), r2(x.overall), r2(x.total), x.rank || "", x.count])];
+}
+function rawAoA() {
+  const head = ["発表No.", "発表者学籍番号", "発表者氏名", "評価者学籍番号", "評価者氏名", ...settings.categories.map(c => c.label + "(平均)"), ...flatQ().map(q => `${q.idx + 1} ${q.text}`), "コメント", "送信日時"];
+  const out = [head];
+  sortedPresenters().forEach(p => Object.values(allEvals[p.id] || {}).forEach(e => {
+    out.push([p.no, p.studentId, p.name, e.evaluatorId, e.evaluatorName, ...catAvgsOf(e.scores).map(v => v == null ? "" : Math.round(v * 100) / 100), ...flatQ().map(q => (e.scores || [])[q.idx] || ""), e.comment || "", e.at ? new Date(e.at).toLocaleString("ja-JP") : ""]);
+  }));
+  return out;
+}
+function commentAoA() {
+  const out = [["発表No.", "発表者氏名", "コメント（評価者名なし）"]];
+  sortedPresenters().forEach(p => Object.values(allEvals[p.id] || {}).forEach(e => { if (e.comment) out.push([p.no, p.name, e.comment]); }));
+  return out;
+}
+function submitAoA() {
+  return [["学籍番号", "氏名", "担任", "発表者名簿", "提出件数", "メール"], ...submitRows().map(r => [r.studentId, r.name, r.tutor, r.isPresenter ? "○" : "", r.count, r.email || ""])];
+}
+function stamp() { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`; }
+function downloadExcel() {
+  const wb = XLSX.utils.book_new();
+  const add = (aoa, name, widths) => { const ws = XLSX.utils.aoa_to_sheet(aoa); if (widths) ws["!cols"] = widths.map(w => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, name); };
+  add(summaryAoA(), "集計", [5, 12, 14, 8, 10, ...settings.categories.map(() => 13), 9, 8, 6, 8]);
+  add(rawAoA(), "全評価データ", [7, 12, 14, 12, 14, ...settings.categories.map(() => 12), ...flatQ().map(() => 8), 50, 18]);
+  add(commentAoA(), "コメント（匿名）", [7, 14, 70]);
+  add(submitAoA(), "提出状況", [12, 14, 8, 10, 8, 26]);
+  XLSX.writeFile(wb, `卒論発表_相互評価集計_${stamp()}.xlsx`);
+}
+function downloadSummaryCsv() {
+  const csv = summaryAoA().map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `卒論発表_集計_${stamp()}.csv`; a.click();
+}
+
+/* ----- 発表者登録 ----- */
+function renderPresenterTable() {
+  const list = sortedPresenters();
+  $("presCount").textContent = list.length;
+  $("presTable").innerHTML = `<tr><th>No.</th><th>学籍番号</th><th>氏名</th><th>担任</th><th>発表日</th><th></th></tr>` +
+    list.map(p => `<tr><td>${esc(p.no)}</td><td>${esc(p.studentId)}</td><td class="left">${esc(p.name)}</td><td>${esc(p.tutor)}</td><td>${esc(p.room)}</td>
+      <td><button class="small secondary" onclick="editPresenter('${p.id}')">編集</button><button class="danger" onclick="deletePresenter('${p.id}')">削除</button></td></tr>`).join("");
+}
+function findKey(row, names) {
+  const keys = Object.keys(row);
+  for (const n of names) { const k = keys.find(k => String(k).replace(/\s|　|\./g, "") === n); if (k) return row[k]; }
+  return "";
+}
+async function importPresenters() {
+  const f = $("importFile").files[0];
+  if (!f) { msg("presMsg", "ファイルを選択してください", "error"); return; }
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    // 見出し行を自動検出（「学籍番号」を含む行）
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false });
+    const hi = aoa.findIndex(r => r.some(c => String(c).replace(/\s/g, "") === "学籍番号"));
+    if (hi < 0) { msg("presMsg", "「学籍番号」の見出しが見つかりません", "error"); return; }
+    const head = aoa[hi].map(c => String(c));
+    const rows = aoa.slice(hi + 1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+    const bySid = {};
+    Object.entries(presenters).forEach(([id, p]) => bySid[normSid(p.studentId)] = id);
+    const up = {};
+    let n = 0;
+    rows.forEach(r => {
+      const sid = normSid(findKey(r, ["学籍番号"]));
+      const name = String(findKey(r, ["氏名", "名前"])).trim();
+      if (!sid || !name) return;
+      const id = bySid[sid] || db.ref("presenters").push().key;
+      const old = presenters[id] || {};
+      up[id] = { no: Number(findKey(r, ["No", "NO", "番号"])) || n + 1, studentId: sid, name, tutor: String(findKey(r, ["担任", "指導教員"])).trim(), room: String(findKey(r, ["発表日", "日程", "教室", "会場"])).trim(), status: old.status || "waiting" };
+      n++;
+    });
+    if (!n) { msg("presMsg", "登録できる行がありませんでした", "error"); return; }
+    await db.ref("presenters").update(up);
+    msg("presMsg", `${n}名を登録しました`, "success");
+    $("importFile").value = "";
+  } catch (e) { msg("presMsg", "読み込みに失敗しました：" + e.message, "error"); }
+}
+function addPresenter() {
+  const sid = normSid($("addSid").value), name = $("addName").value.trim();
+  if (!sid || !name) { msg("presMsg", "学籍番号と氏名は必須です", "error"); return; }
+  if (Object.values(presenters).some(p => normSid(p.studentId) === sid)) { msg("presMsg", "その学籍番号は登録済みです", "error"); return; }
+  db.ref("presenters").push({ no: Number($("addNo").value) || Object.keys(presenters).length + 1, studentId: sid, name, tutor: $("addTutor").value.trim(), room: $("addRoom").value.trim(), status: "waiting" })
+    .then(() => { ["addNo", "addSid", "addName"].forEach(i => $(i).value = ""); msg("presMsg", "追加しました", "success"); });
+}
+function editPresenter(pid) {
+  const p = presenters[pid];
+  const no = prompt("No.", p.no); if (no === null) return;
+  const name = prompt("氏名", p.name); if (name === null) return;
+  const tutor = prompt("担任", p.tutor || ""); if (tutor === null) return;
+  const room = prompt("発表日", p.room || ""); if (room === null) return;
+  db.ref("presenters/" + pid).update({ no: Number(no) || p.no, name: name.trim() || p.name, tutor: tutor.trim(), room: room.trim() });
+}
+function deletePresenter(pid) {
+  const c = evalCount(pid);
+  if (!confirm(`${presenters[pid].name} さんを削除しますか？` + (c ? `\n（この発表への評価${c}件も削除されます）` : ""))) return;
+  db.ref().update({ ["presenters/" + pid]: null, ["evaluations/" + pid]: null });
+}
+function deleteAllPresenters() {
+  if (prompt("発表者と評価データをすべて削除します。実行する場合は「削除」と入力してください") !== "削除") return;
+  db.ref().update({ presenters: null, evaluations: null });
+}
+
+/* ----- 設定 ----- */
+let editCats = [];
+function renderSettingsForm() {
+  if (document.activeElement && $("tabSettings").contains(document.activeElement)) return; // 入力中は上書きしない
+  $("setTitle").value = settings.title;
+  $("setCommentReq").checked = !!settings.commentRequired;
+  editCats = settings.categories.map(c => ({ label: c.label, text: c.questions.join("\n") }));
+  drawItems();
+}
+function drawItems() {
+  $("itemsEdit").innerHTML = editCats.map((c, i) => `<div class="item-edit">
+    <div class="row"><input type="text" value="${esc(c.label)}" oninput="editCats[${i}].label=this.value" placeholder="観点名（例：①研究活動）">
+    <button class="danger" style="flex:0;" onclick="editCats.splice(${i},1);drawItems()">削除</button></div>
+    <textarea style="margin-top:6px;min-height:110px;" oninput="editCats[${i}].text=this.value" placeholder="設問（1行に1問）">${esc(c.text)}</textarea></div>`).join("");
+}
+function addItemEdit() { editCats.push({ label: "", text: "" }); drawItems(); }
+function saveSettings() {
+  const categories = editCats.map(c => ({ label: c.label.trim(), questions: c.text.split(/\r?\n/).map(x => x.trim()).filter(x => x) })).filter(c => c.label && c.questions.length);
+  if (!categories.length) { msg("setMsg", "観点と設問を1つ以上設定してください", "error"); return; }
+  db.ref("settings").set({ title: $("setTitle").value.trim() || DEFAULT_SETTINGS.title, commentRequired: $("setCommentReq").checked, categories })
+    .then(() => { if (document.activeElement) document.activeElement.blur(); msg("setMsg", "保存しました", "success"); })
+    .catch(e => msg("setMsg", e.message, "error"));
+}
+function resetEvaluations() {
+  if (prompt("評価データをすべて削除し，発表者の状態を「未実施」に戻します。実行する場合は「削除」と入力してください") !== "削除") return;
+  const up = { evaluations: null };
+  Object.keys(presenters).forEach(id => up[`presenters/${id}/status`] = "waiting");
+  db.ref().update(up).then(() => msg("setMsg", "評価データを削除しました", "success"));
+}
+function resetUsers() {
+  if (prompt("学生の登録情報（学籍番号・氏名）をすべて削除します。実行する場合は「削除」と入力してください") !== "削除") return;
+  db.ref("users").remove().then(() => msg("setMsg", "登録情報を削除しました", "success"));
+}
+</script>
+</body>
+</html>
