@@ -227,7 +227,7 @@
 
 <script>
 /* ==========================================================
-   Firebase設定（Firebaseコンソールの値に置き換えてください）
+   Firebase設定（thesis-eval-app）
 ========================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyA1Ij9AKsGvlQGepwKV002YMcLMD13hN6Y",
@@ -325,9 +325,14 @@ function sortedPresenters() {
   return Object.entries(presenters).map(([id, p]) => ({ id, ...p }))
     .sort((a, b) => (Number(a.no) || 9999) - (Number(b.no) || 9999) || String(a.studentId).localeCompare(String(b.studentId)));
 }
+/* 発表日（グループ）の並び順：その日に含まれる発表者の最小No.順（＝名簿の順） */
 function rooms() {
-  const s = new Set(Object.values(presenters).map(p => p.room || ""));
-  return [...s].sort();
+  const first = {};
+  Object.values(presenters).forEach(p => {
+    const r = p.room || "", no = Number(p.no) || 9999;
+    if (!(r in first) || no < first[r]) first[r] = no;
+  });
+  return Object.keys(first).sort((a, b) => first[a] - first[b] || a.localeCompare(b));
 }
 function roomLabel(r) { return r ? r : "（発表日未設定）"; }
 function normSid(s) { return String(s == null ? "" : s).replace(/[^0-9A-Za-z]/g, "").toUpperCase(); }
